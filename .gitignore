@@ -1,40 +1,13 @@
-# ======================
-# macOS system files
-# ======================
-.DS_Store
-
-# ======================
-# Windows system files
-# ======================
-Thumbs.db
-Desktop.ini
-
-# ======================
-# Python virtual environments
-# ======================
-.env
+*.db
+*.slides.html
+.coverage
 .venv/
-venv/
-ENV/
+!.vscode/settings.json
+.DS_Store
+__pycache__
 
-# ======================
-# Python cache files
-# ======================
-__pycache__/
-*.py[cod]
-*$py.class
-
-# ======================
-# Jupyter Notebook checkpoints
-# ======================
-.ipynb_checkpoints/
-
-# ======================
-# VS Code settings (optional)
-# ======================
-.vscode/
-
-# ======================
-# Logs and temporary files
-# ======================
-*.log
+## SECRETS ##
+# Google Cloud service account key
+sipa-adv-c-*.json
+# https://docs.streamlit.io/develop/concepts/connections/secrets-management#develop-locally-and-set-up-secrets
+secrets.toml
