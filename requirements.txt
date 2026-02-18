@@ -3,3 +3,7 @@ jupyter==1.*
 plotly
 numpy
 matplotlib
+pyarrow
+streamlit>=1.30
+altair<6
+jupyter-book==1.*
