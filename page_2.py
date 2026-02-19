@@ -2,67 +2,45 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 
-st.title("📌 Page 2: Part 1 Dataset (NYC Crashes)")
+st.title("NYC Traffic Crashes")
 
-@st.cache_data
-def load_data():
-    url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json?$limit=20000"
-    return pd.read_json(url)
 
-df = load_data()
-
-st.write("Rows:", len(df))
-st.dataframe(df.head(15), use_container_width=True)
-
-st.markdown("---")
-st.subheader("Meaningful Visualization: Monthly Trend of Injuries vs Fatalities")
-
-needed = ["crash_date", "number_of_persons_injured", "number_of_persons_killed"]
-missing = [c for c in needed if c not in df.columns]
-
-if missing:
-    st.error(f"Missing columns: {missing}")
-    st.stop()
+url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json?$limit=20000"
+df = pd.read_json(url)
 
 df["crash_date"] = pd.to_datetime(df["crash_date"], errors="coerce")
-df["number_of_persons_injured"] = pd.to_numeric(df["number_of_persons_injured"], errors="coerce").fillna(0)
-df["number_of_persons_killed"] = pd.to_numeric(df["number_of_persons_killed"], errors="coerce").fillna(0)
-
 df = df.dropna(subset=["crash_date"])
 
 
-monthly = (
-    df.assign(month=df["crash_date"].dt.to_period("M").dt.to_timestamp())
-      .groupby("month", as_index=False)[["number_of_persons_injured", "number_of_persons_killed"]]
-      .sum()
+df_2025 = df[df["crash_date"].dt.year == 2022]
+
+st.subheader("Raw Data")
+st.dataframe(df_2025.head(20), use_container_width=True)
+
+st.subheader("Crashes by Day of Week ")
+
+
+df_2025["weekday"] = df_2025["crash_date"].dt.day_name()
+
+weekday_counts = (
+    df_2025["weekday"]
+    .value_counts()
+    .reset_index()
 )
 
-
-monthly_long = monthly.melt(
-    id_vars="month",
-    value_vars=["number_of_persons_injured", "number_of_persons_killed"],
-    var_name="metric",
-    value_name="count",
-)
-
-
-monthly_long["metric"] = monthly_long["metric"].map({
-    "number_of_persons_injured": "Injured",
-    "number_of_persons_killed": "Killed"
-})
+weekday_counts.columns = ["weekday", "crashes"]
 
 chart = (
-    alt.Chart(monthly_long)
-    .mark_line(point=True)
+    alt.Chart(weekday_counts)
+    .mark_bar()
     .encode(
-        x=alt.X("month:T", title="Month"),
-        y=alt.Y("count:Q", title="People (sum)"),
-        color=alt.Color("metric:N", title="Outcome"),
-        tooltip=[alt.Tooltip("month:T", title="Month"), "metric:N", alt.Tooltip("count:Q", format=",")]
+        x=alt.X("weekday:N", sort=[
+            "Monday","Tuesday","Wednesday","Thursday",
+            "Friday","Saturday","Sunday"
+        ]),
+        y="crashes:Q",
+        tooltip=["weekday", "crashes"]
     )
-    .properties(height=420)
 )
 
 st.altair_chart(chart, use_container_width=True)
-
-st.caption("This chart shows how total injuries and fatalities change over time (monthly sums) in the NYC crashes dataset.")
