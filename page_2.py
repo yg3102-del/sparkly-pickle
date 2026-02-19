@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 
-st.title("NYC Traffic Crashes")
+st.title("Motor Vehicle Collisions - Person")
 
 
 url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json?$limit=20000"
