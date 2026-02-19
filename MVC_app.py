@@ -1,15 +1,10 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
 
-st.set_page_config(page_title="NYC Open Data App", layout="wide")
-st.title('NYC Motor Vehicle Collisions')
 
-st.subheader("🏠 Team Members")
-st.write("Yiran Ge, Yizi Qu")
+main_page = st.Page("main_page.py", title="Main Page", icon="🎈")
+page_2 = st.Page("page_2.py", title="Page 2", icon="❄️")
+page_3 = st.Page("page_3.py", title="Page 3", icon="🎉")
 
-st.markdown("---")
-st.write("Use the sidebar to navigate:")
-st.write("- **Part1 Dataset** (Page 2): NYC Open Data API + visualization")
-st.write("- **Second Dataset** (Page 3): another relevant dataset + visualization")
+pg = st.navigation([main_page, page_2, page_3])
 
+pg.run()
