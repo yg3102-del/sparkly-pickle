@@ -1,137 +1,61 @@
 import streamlit as st
 import pandas as pd
-from urllib.parse import urlencode
+import matplotlib.pyplot as plt
 
-st.title("Motor Vehicle Collisions - Merged Dataset (2022 Only)")
+from src.nyc_open_data import load_person_2022, load_crash_2022
+from src.analytics import unique_by_collision, monthly_counts, value_counts_df
 
-# =====================================================
-# 1️⃣ Load Person Data (2022)
-# =====================================================
-
-@st.cache_data
-def load_person_2022():
-    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
-    limit = 50000
-    offset = 0
-    all_data = []
-
-    while True:
-        query_params = {
-            "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
-            "$limit": limit,
-            "$offset": offset
-        }
-
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    return pd.concat(all_data, ignore_index=True)
-
-
-# =====================================================
-# 2️⃣ Load Crash Data (2022)
-# =====================================================
+st.title("Motor Vehicle Collisions - Merged Dataset")
 
 @st.cache_data
-def load_crash_2022():
-    base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
-    limit = 50000
-    offset = 0
-    all_data = []
+def get_person_df_2022() -> pd.DataFrame:
+    return load_person_2022()
 
-    while True:
-        query_params = {
-            "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
-            "$limit": limit,
-            "$offset": offset
-        }
+@st.cache_data
+def get_crash_df_2022() -> pd.DataFrame:
+    return load_crash_2022()
 
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    return pd.concat(all_data, ignore_index=True)
-
-
-# =====================================================
-# 3️⃣ Load Both
-# =====================================================
-
-person_df = load_person_2022()
-crash_df = load_crash_2022()
+person_df = get_person_df_2022()
+crash_df = get_crash_df_2022()
 
 st.write("Person rows:", person_df.shape[0])
 st.write("Crash rows:", crash_df.shape[0])
 
-
-# =====================================================
-# 4️⃣ Merge on collision_id
-# =====================================================
-
-merged_df = pd.merge(
-    person_df,
-    crash_df,
-    on="collision_id",
-    how="inner"
-)
-
+merged_df = pd.merge(person_df, crash_df, on="collision_id", how="inner")
 st.write("Merged rows:", merged_df.shape[0])
 st.write("Merged columns:", merged_df.shape[1])
 
-st.dataframe(merged_df.head(20))
+st.dataframe(merged_df.head(20), use_container_width=True)
 
+# --- dedupe ---
+unique_crashes = unique_by_collision(merged_df, id_col="collision_id")
 
-import matplotlib.pyplot as plt
+# crash_date column in merged data might differ
+# your original code used crash_date_y
+date_col = "crash_date_y" if "crash_date_y" in unique_crashes.columns else "crash_date"
 
-# ==============================
-# 1️⃣ 去重（只保留唯一 crash）
-# ==============================
-
-unique_crashes = merged_df.drop_duplicates(subset="collision_id").copy()
-
-# 确保 crash_date 是 datetime
-unique_crashes["crash_date"] = pd.to_datetime(unique_crashes["crash_date_y"])
-
-# ==============================
-# 2️⃣ Crashes by Month (2022)
-# ==============================
-
-unique_crashes["month"] = unique_crashes["crash_date"].dt.month
-monthly_counts = unique_crashes["month"].value_counts().sort_index()
+# --- monthly counts ---
+monthly_df = monthly_counts(unique_crashes, date_col=date_col)
+monthly_series = monthly_df.set_index("month")["crashes"]
 
 fig1, ax1 = plt.subplots()
-monthly_counts.plot(kind="line", marker="o", ax=ax1)
-
+monthly_series.plot(kind="line", marker="o", ax=ax1)
 ax1.set_title("Crashes by Month (2022)")
 ax1.set_xlabel("Month")
 ax1.set_ylabel("Number of Crashes")
-
 st.pyplot(fig1)
 
-# ==============================
-# 3️⃣ Crashes by Borough (2022)
-# ==============================
+# --- borough counts ---
+if "borough" in unique_crashes.columns:
+    borough_df = value_counts_df(unique_crashes, "borough")
+    borough_series = borough_df.set_index("borough")["count"]
 
-borough_counts = unique_crashes["borough"].value_counts()
-
-fig2, ax2 = plt.subplots()
-borough_counts.plot(kind="bar", ax=ax2)
-
-ax2.set_title("Crashes by Borough (2022)")
-ax2.set_xlabel("Borough")
-ax2.set_ylabel("Number of Crashes")
-
-plt.xticks(rotation=45)
-
-st.pyplot(fig2)
+    fig2, ax2 = plt.subplots()
+    borough_series.plot(kind="bar", ax=ax2)
+    ax2.set_title("Crashes by Borough (2022)")
+    ax2.set_xlabel("Borough")
+    ax2.set_ylabel("Number of Crashes")
+    plt.xticks(rotation=45)
+    st.pyplot(fig2)
+else:
+    st.warning("Column 'borough' not found in merged dataset.")
