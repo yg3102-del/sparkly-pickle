@@ -1,94 +1,137 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
+from urllib.parse import urlencode
 
-# Page Title
+st.title("Motor Vehicle Collisions - Merged Dataset (2022 Only)")
 
-st.title("NYC Motor Vehicle Collisions – 2021 Overview")
-
-# Load Data
+# =====================================================
+# 1️⃣ Load Person Data (2022)
+# =====================================================
 
 @st.cache_data
-def load_data():
-    url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json?$limit=20000"
-    return pd.read_json(url)
+def load_person_2022():
+    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
+    limit = 50000
+    offset = 0
+    all_data = []
+
+    while True:
+        query_params = {
+            "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
+            "$limit": limit,
+            "$offset": offset
+        }
+
+        url = f"{base_url}?{urlencode(query_params)}"
+        df = pd.read_json(url)
+
+        if df.empty:
+            break
+
+        all_data.append(df)
+        offset += limit
+
+    return pd.concat(all_data, ignore_index=True)
 
 
-df = load_data()
-st.subheader("Raw Data Preview")
-st.dataframe(df.head(100))
+# =====================================================
+# 2️⃣ Load Crash Data (2022)
+# =====================================================
 
-st.markdown("---")
+@st.cache_data
+def load_crash_2022():
+    base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
+    limit = 50000
+    offset = 0
+    all_data = []
 
-st.write(f"Total crashes in 2021 (from sample): {len(df)}")
+    while True:
+        query_params = {
+            "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
+            "$limit": limit,
+            "$offset": offset
+        }
 
-# Clean Data
+        url = f"{base_url}?{urlencode(query_params)}"
+        df = pd.read_json(url)
 
-df["crash_date"] = pd.to_datetime(df["crash_date"], errors="coerce")
-df = df.dropna(subset=["crash_date"])
+        if df.empty:
+            break
 
-# 只保留 2021
-df_2021 = df[df["crash_date"].dt.year == 2021]
+        all_data.append(df)
+        offset += limit
 
-st.write(f"Total crashes in 2021 (from sample): {len(df_2021)}")
+    return pd.concat(all_data, ignore_index=True)
 
-st.markdown("---")
 
-# Monthly Trend
+# =====================================================
+# 3️⃣ Load Both
+# =====================================================
 
-st.subheader("Crashes by Month (2021)")
+person_df = load_person_2022()
+crash_df = load_crash_2022()
 
-df_2021["month"] = df_2021["crash_date"].dt.month
+st.write("Person rows:", person_df.shape[0])
+st.write("Crash rows:", crash_df.shape[0])
 
-monthly_counts = df_2021.groupby("month").size().reset_index(name="crashes")
 
-chart_month = (
-    alt.Chart(monthly_counts)
-    .mark_line(point=True)
-    .encode(
-        x=alt.X("month:O", title="Month"),
-        y=alt.Y("crashes:Q", title="Number of Crashes"),
-        tooltip=["month", "crashes"],
-    )
+# =====================================================
+# 4️⃣ Merge on collision_id
+# =====================================================
+
+merged_df = pd.merge(
+    person_df,
+    crash_df,
+    on="collision_id",
+    how="inner"
 )
 
-st.altair_chart(chart_month, use_container_width=True)
+st.write("Merged rows:", merged_df.shape[0])
+st.write("Merged columns:", merged_df.shape[1])
 
-st.markdown("---")
+st.dataframe(merged_df.head(20))
 
-#  Borough Distribution
 
-st.subheader("Crashes by Borough (2021)")
+import matplotlib.pyplot as plt
 
-# Keep only the five valid boroughs
-valid_boroughs = [
-    "BRONX",
-    "BROOKLYN",
-    "MANHATTAN",
-    "QUEENS",
-    "STATEN ISLAND"
-]
+# ==============================
+# 1️⃣ 去重（只保留唯一 crash）
+# ==============================
 
-df_2021_clean = df_2021[df_2021["borough"].isin(valid_boroughs)]
+unique_crashes = merged_df.drop_duplicates(subset="collision_id").copy()
 
-# Count crashes
-borough_counts = (
-    df_2021_clean["borough"]
-    .value_counts()
-    .reset_index()
-)
+# 确保 crash_date 是 datetime
+unique_crashes["crash_date"] = pd.to_datetime(unique_crashes["crash_date_y"])
 
-borough_counts.columns = ["borough", "crashes"]
+# ==============================
+# 2️⃣ Crashes by Month (2022)
+# ==============================
 
-# Create bar chart
-chart_borough = (
-    alt.Chart(borough_counts)
-    .mark_bar()
-    .encode(
-        x=alt.X("borough:N", title="Borough"),
-        y=alt.Y("crashes:Q", title="Number of Crashes"),
-        tooltip=["borough", "crashes"]
-    )
-)
+unique_crashes["month"] = unique_crashes["crash_date"].dt.month
+monthly_counts = unique_crashes["month"].value_counts().sort_index()
 
-st.altair_chart(chart_borough, width="stretch")
+fig1, ax1 = plt.subplots()
+monthly_counts.plot(kind="line", marker="o", ax=ax1)
+
+ax1.set_title("Crashes by Month (2022)")
+ax1.set_xlabel("Month")
+ax1.set_ylabel("Number of Crashes")
+
+st.pyplot(fig1)
+
+# ==============================
+# 3️⃣ Crashes by Borough (2022)
+# ==============================
+
+borough_counts = unique_crashes["borough"].value_counts()
+
+fig2, ax2 = plt.subplots()
+borough_counts.plot(kind="bar", ax=ax2)
+
+ax2.set_title("Crashes by Borough (2022)")
+ax2.set_xlabel("Borough")
+ax2.set_ylabel("Number of Crashes")
+
+plt.xticks(rotation=45)
+
+st.pyplot(fig2)
