@@ -15,7 +15,7 @@ def unique_by_collision(df: pd.DataFrame, id_col: str = "collision_id") -> pd.Da
     return df.drop_duplicates(subset=id_col).copy()
 
 
-def _coerce_datetime_and_dropna(df: pd.DataFrame, date_col: str) -> pd.DataFrame:
+def coerce_datetime_and_dropna(df: pd.DataFrame, date_col: str) -> pd.DataFrame:
     if date_col not in df.columns:
         raise KeyError(f"Missing required column: {date_col}")
     out = df.copy()
