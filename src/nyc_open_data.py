@@ -70,7 +70,7 @@ def load_person_2022(
         read_json=read_json,
     )
 
-    df = validate_person(df)   
+    df = validate_person(df)
     return df
 
 
@@ -88,5 +88,5 @@ def load_crash_2022(
         read_json=read_json,
     )
 
-    df = validate_crash(df)    
+    df = validate_crash(df)
     return df
