@@ -28,9 +28,7 @@ def test_basic():
 
 
 def test_dates():
-    df = pd.DataFrame(
-        {"collision_id": [1, 2, 3], "crash_date": ["2022-01-03", None, "not-a-date"]}
-    )
+    df = pd.DataFrame({"collision_id": [1, 2, 3], "crash_date": ["2022-01-03", None, "not-a-date"]})
     out = weekday_counts(df, date_col="crash_date")
     d = dict(zip(out["weekday"], out["crashes"], strict=True))
     assert d["Monday"] == 1

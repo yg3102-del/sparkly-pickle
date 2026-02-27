@@ -7,13 +7,16 @@ from src.analytics import unique_by_collision, monthly_counts, value_counts_df
 
 st.title("Motor Vehicle Collisions - Merged Dataset")
 
+
 @st.cache_data
 def get_person_df_2022() -> pd.DataFrame:
     return load_person_2022()
 
+
 @st.cache_data
 def get_crash_df_2022() -> pd.DataFrame:
     return load_crash_2022()
+
 
 person_df = get_person_df_2022()
 crash_df = get_crash_df_2022()
