@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import pandera as pa
 from pandera import Column, DataFrameSchema, Check
 
 
@@ -37,7 +35,7 @@ _crash_schema = DataFrameSchema(
             coerce=True,
         ),
     },
-    strict=False,  
+    strict=False,
 )
 
 
