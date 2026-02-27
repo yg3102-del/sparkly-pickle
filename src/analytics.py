@@ -3,7 +3,15 @@ from __future__ import annotations
 import pandas as pd
 
 
-WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+WEEKDAY_ORDER = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
 
 
 def unique_by_collision(df: pd.DataFrame, id_col: str = "collision_id") -> pd.DataFrame:
@@ -24,7 +32,9 @@ def coerce_datetime_and_dropna(df: pd.DataFrame, date_col: str) -> pd.DataFrame:
     return out
 
 
-def weekday_counts(df: pd.DataFrame, date_col: str, id_col: str | None = None) -> pd.DataFrame:
+def weekday_counts(
+    df: pd.DataFrame, date_col: str, id_col: str | None = None
+) -> pd.DataFrame:
     work = df.copy()
 
     if id_col is not None:
@@ -39,15 +49,16 @@ def weekday_counts(df: pd.DataFrame, date_col: str, id_col: str | None = None) -
     weekdays = work[date_col].dt.day_name()
     counts = weekdays.value_counts()
 
-   
     counts = counts.reindex(WEEKDAY_ORDER).dropna().astype(int)
 
     out = counts.reset_index()
-    out.columns = ["weekday", "crashes"]  
+    out.columns = ["weekday", "crashes"]
     return out
 
 
-def monthly_counts(df: pd.DataFrame, date_col: str, id_col: str | None = None) -> pd.DataFrame:
+def monthly_counts(
+    df: pd.DataFrame, date_col: str, id_col: str | None = None
+) -> pd.DataFrame:
     work = df.copy()
 
     if id_col is not None:
@@ -63,7 +74,7 @@ def monthly_counts(df: pd.DataFrame, date_col: str, id_col: str | None = None) -
     counts = months.value_counts().sort_index().astype(int)
 
     out = counts.reset_index()
-    out.columns = ["month", "crashes"]   
+    out.columns = ["month", "crashes"]
     return out
 
 
