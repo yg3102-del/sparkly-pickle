@@ -32,8 +32,9 @@ def test_pages():
         read_json=read_json_2,
     )
 
-    assert df.shape[0] == 3
-    assert calls["n"] == 3
+    expected_n = 3
+    assert df.shape[0] == expected_n
+    assert calls["n"] == expected_n
 
 
 def test__increment():
