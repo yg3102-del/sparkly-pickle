@@ -1,7 +1,6 @@
 import pandas as pd
 import pytest
-
-from src.analytics import unique_by_collision, weekday_counts, monthly_counts, value_counts_df
+from src.analytics import monthly_counts, unique_by_collision, value_counts_df, weekday_counts
 
 
 def test_dedupes():

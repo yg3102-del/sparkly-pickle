@@ -1,5 +1,4 @@
 import pandas as pd
-
 from src.nyc_open_data import build_url, load_paginated
 
 
