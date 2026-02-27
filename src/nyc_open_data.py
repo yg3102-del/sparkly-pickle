@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from typing import Callable, Optional
 
 import pandas as pd
-
+from src.validation import validate_crash, validate_person
 
 def build_url(base_url: str, where: str, limit: int, offset: int) -> str:
     """
