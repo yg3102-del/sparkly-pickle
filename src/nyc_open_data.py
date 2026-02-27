@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 from typing import Callable, Optional
 
 import pandas as pd
+from src.validation import validate_crash, validate_person
 
 
 def build_url(base_url: str, where: str, limit: int, offset: int) -> str:
@@ -61,9 +62,16 @@ def load_person_2022(
 ) -> pd.DataFrame:
     base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
     where = "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'"
-    return load_paginated(
-        base_url=base_url, where=where, limit=limit, read_json=read_json
+
+    df = load_paginated(
+        base_url=base_url,
+        where=where,
+        limit=limit,
+        read_json=read_json,
     )
+
+    df = validate_person(df)   
+    return df
 
 
 def load_crash_2022(
@@ -72,6 +80,13 @@ def load_crash_2022(
 ) -> pd.DataFrame:
     base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
     where = "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'"
-    return load_paginated(
-        base_url=base_url, where=where, limit=limit, read_json=read_json
+
+    df = load_paginated(
+        base_url=base_url,
+        where=where,
+        limit=limit,
+        read_json=read_json,
     )
+
+    df = validate_crash(df)    
+    return df
