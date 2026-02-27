@@ -9,3 +9,5 @@ altair<6
 jupyter-book==1.*
 pandera
 ruff
+pytest
+pytest-cov
