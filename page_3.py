@@ -1,64 +1,151 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import altair as alt
+from urllib.parse import urlencode
+from datetime import datetime
 
-from src.nyc_open_data import load_person_2022, load_crash_2022
-from src.analytics import unique_by_collision, monthly_counts, value_counts_df
+st.title("Motor Vehicle Collisions - Merged Dataset (2026 Live)")
 
-st.title("Motor Vehicle Collisions - Merged Dataset")
-
-
-@st.cache_data
-def get_person_df_2022() -> pd.DataFrame:
-    return load_person_2022()
+# =====================================================
+# 1️⃣ real-time data loading for 2026
+# =====================================================
 
 
-@st.cache_data
-def get_crash_df_2022() -> pd.DataFrame:
-    return load_crash_2022()
+@st.cache_data(ttl=3600)
+def load_person_2026_live():
+    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
+    limit = 50000
+    offset = 0
+    all_data = []
+
+    start_date = "2026-01-01T00:00:00"
+    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+
+    while True:
+        query_params = {
+            "$where": f"crash_date between '{start_date}' and '{end_date}'",
+            "$limit": limit,
+            "$offset": offset,
+        }
+
+        url = f"{base_url}?{urlencode(query_params)}"
+        df = pd.read_json(url)
+
+        if df.empty:
+            break
+
+        all_data.append(df)
+        offset += limit
+
+    if all_data:
+        return pd.concat(all_data, ignore_index=True)
+    else:
+        return pd.DataFrame()
 
 
-person_df = get_person_df_2022()
-crash_df = get_crash_df_2022()
+# =====================================================
+# 2️⃣ Crash data loading for 2026
+# =====================================================
+
+
+@st.cache_data(ttl=3600)
+def load_crash_2026_live():
+    base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
+    limit = 50000
+    offset = 0
+    all_data = []
+
+    start_date = "2026-01-01T00:00:00"
+    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+
+    while True:
+        query_params = {
+            "$where": f"crash_date between '{start_date}' and '{end_date}'",
+            "$limit": limit,
+            "$offset": offset,
+        }
+
+        url = f"{base_url}?{urlencode(query_params)}"
+        df = pd.read_json(url)
+
+        if df.empty:
+            break
+
+        all_data.append(df)
+        offset += limit
+
+    if all_data:
+        return pd.concat(all_data, ignore_index=True)
+    else:
+        return pd.DataFrame()
+
+
+# =====================================================
+# 3️⃣ load data
+# =====================================================
+
+with st.spinner("Loading 2026 live data..."):
+    person_df = load_person_2026_live()
+    crash_df = load_crash_2026_live()
+
+if person_df.empty or crash_df.empty:
+    st.warning("No 2026 data available yet.")
+    st.stop()
+
+person_df["crash_date"] = pd.to_datetime(person_df["crash_date"], errors="coerce")
+crash_df["crash_date"] = pd.to_datetime(crash_df["crash_date"], errors="coerce")
+
+# =====================================================
+# 4️⃣ Merge
+# =====================================================
+
+merged_df = pd.merge(person_df, crash_df, on="collision_id", how="inner")
+
+st.subheader("Merged Dataset Summary")
 
 st.write("Person rows:", person_df.shape[0])
 st.write("Crash rows:", crash_df.shape[0])
-
-merged_df = pd.merge(person_df, crash_df, on="collision_id", how="inner")
 st.write("Merged rows:", merged_df.shape[0])
 st.write("Merged columns:", merged_df.shape[1])
 
 st.dataframe(merged_df.head(20), use_container_width=True)
 
-# --- dedupe ---
-unique_crashes = unique_by_collision(merged_df, id_col="collision_id")
+# =====================================================
+# 5️⃣ crashes by day of week analysis
+# =====================================================
 
-# crash_date column in merged data might differ
-# your original code used crash_date_y
-date_col = "crash_date_y" if "crash_date_y" in unique_crashes.columns else "crash_date"
+unique_crashes = merged_df.drop_duplicates(subset="collision_id").copy()
 
-# --- monthly counts ---
-monthly_df = monthly_counts(unique_crashes, date_col=date_col)
-monthly_series = monthly_df.set_index("month")["crashes"]
+# =====================================================
+# Daily Trend
+# =====================================================
 
-fig1, ax1 = plt.subplots()
-monthly_series.plot(kind="line", marker="o", ax=ax1)
-ax1.set_title("Crashes by Month (2022)")
-ax1.set_xlabel("Month")
-ax1.set_ylabel("Number of Crashes")
-st.pyplot(fig1)
+unique_crashes["date"] = unique_crashes["crash_date_x"].dt.date
 
-# --- borough counts ---
+daily_counts = unique_crashes.groupby("date").size().reset_index(name="crashes")
+
+daily_chart = (
+    alt.Chart(daily_counts)
+    .mark_line()
+    .encode(x="date:T", y="crashes:Q", tooltip=["date", "crashes"])
+)
+
+st.subheader("Crashes by Day (2026 Live)")
+st.altair_chart(daily_chart, width="stretch")
+
+
+# Borough analysis
 if "borough" in unique_crashes.columns:
-    borough_df = value_counts_df(unique_crashes, "borough")
-    borough_series = borough_df.set_index("borough")["count"]
+    borough_counts = unique_crashes["borough"].value_counts().reset_index()
 
-    fig2, ax2 = plt.subplots()
-    borough_series.plot(kind="bar", ax=ax2)
-    ax2.set_title("Crashes by Borough (2022)")
-    ax2.set_xlabel("Borough")
-    ax2.set_ylabel("Number of Crashes")
-    plt.xticks(rotation=45)
-    st.pyplot(fig2)
-else:
-    st.warning("Column 'borough' not found in merged dataset.")
+    borough_counts.columns = ["borough", "crashes"]
+
+    borough_chart = (
+        alt.Chart(borough_counts)
+        .mark_bar()
+        .encode(x="borough:N", y="crashes:Q", tooltip=["borough", "crashes"])
+    )
+
+    st.subheader("Crashes by Borough (2026 Live)")
+    st.altair_chart(borough_chart, use_container_width=True)
+
