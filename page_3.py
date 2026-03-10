@@ -148,4 +148,3 @@ if "borough" in unique_crashes.columns:
 
     st.subheader("Crashes by Borough (2026 Live)")
     st.altair_chart(borough_chart, use_container_width=True)
-
