@@ -154,7 +154,7 @@ daily_chart = (
 st.subheader("Crashes by Day (2026 Live)")
 st.altair_chart(daily_chart, width="stretch")
 
-#markdowm
+# markdowm
 st.markdown("### Daily Trend Takeaway")
 st.write(
     """
@@ -177,7 +177,6 @@ Overall, the data suggests that motor vehicle collisions occur consistently acro
 st.write("""
 Future analysis could explore whether these daily fluctuations are associated with specific factors such as weekday patterns, borough differences, or weather conditions.
 """)
-
 
 
 # Borough analysis
@@ -203,7 +202,7 @@ if "borough" in unique_crashes.columns:
     st.subheader("Crashes by Borough (2026 Live)")
     st.altair_chart(borough_chart, use_container_width=True)
 
-#markdown
+# markdown
 st.markdown("### Borough Takeaway")
 st.write(
     """

@@ -18,7 +18,7 @@ st.write(
 # =====================================================
 
 
-@st.cache_data(ttl=3600)  
+@st.cache_data(ttl=3600)
 def load_person_2026_live():
     base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
     limit = 50000
@@ -133,7 +133,7 @@ chart = (
 st.subheader("Crashes by Day of Week (2026 Live)")
 st.altair_chart(chart, use_container_width=True)
 
-#markdowm
+# markdowm
 st.markdown("### Key Takeaway")
 st.write(
     """
