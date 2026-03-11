@@ -6,12 +6,19 @@ from datetime import datetime
 
 st.title("Motor Vehicle Collisions - Person (2026 Live)")
 
+st.write(
+    """
+    This page uses the 2026 live person-level motor vehicle collisions dataset from NYC Open Data.
+    It provides a basic summary of the dataset and explores how crash frequency varies by day of the week.
+    """
+)
+
 # =====================================================
 # 1️⃣ 2026-01-01 till now
 # =====================================================
 
 
-@st.cache_data(ttl=3600)  # 每小时刷新一次
+@st.cache_data(ttl=3600)  
 def load_person_2026_live():
     base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
     limit = 50000
@@ -54,13 +61,19 @@ if person_df.empty:
     st.warning("No 2026 data available yet.")
     st.stop()
 
-# 转换日期格式
+
 person_df["crash_date"] = pd.to_datetime(person_df["crash_date"], errors="coerce")
 person_df = person_df.dropna(subset=["crash_date"])
 
 # =====================================================
 # 3️⃣ basic summary and raw data preview
 # =====================================================
+st.markdown("### Page Goal")
+st.write(
+    """
+    The goal of this page is to introduce the first dataset and provide an initial view of temporal patterns in collisions.
+    """
+)
 
 st.subheader("Dataset Summary (2026 Live)")
 
@@ -99,6 +112,13 @@ weekday_order = [
 # =====================================================
 # 5️⃣ Visualization
 # =====================================================
+st.markdown("### Why this chart matters")
+st.write(
+    """
+    Looking at crashes by day of the week helps us identify whether collisions are distributed evenly
+    or whether certain days show higher crash frequency.
+    """
+)
 
 chart = (
     alt.Chart(weekday_counts)
@@ -112,3 +132,23 @@ chart = (
 
 st.subheader("Crashes by Day of Week (2026 Live)")
 st.altair_chart(chart, use_container_width=True)
+
+#markdowm
+st.markdown("### Key Takeaway")
+st.write(
+    """
+    This chart gives an initial overview of how crashes are distributed across the week.
+    It helps us begin identifying whether weekdays or weekends show different collision patterns.
+    """
+)
+st.markdown("### Key Insights")
+
+st.write("""
+The chart shows that motor vehicle collisions vary across different days of the week rather than being evenly distributed.
+
+Crash counts gradually increase toward the end of the work week, with Friday recording the highest number of collisions. 
+This may reflect higher traffic volumes and increased travel activity as the week progresses.
+
+Weekend patterns differ slightly, with Saturday remaining relatively high but Sunday showing the lowest crash count.
+Overall, the pattern suggests that commuting behavior and traffic intensity likely play an important role in shaping collision risk.
+""")
