@@ -5,6 +5,12 @@ from urllib.parse import urlencode
 from datetime import datetime
 
 st.title("Motor Vehicle Collisions - Merged Dataset (2026 Live)")
+st.write(
+    """
+    This page merges two live 2026 NYC collision datasets to support broader exploratory analysis.
+    By combining person-level and crash-level data, we can examine trends across time and location.
+    """
+)
 
 # =====================================================
 # 1️⃣ real-time data loading for 2026
@@ -110,6 +116,14 @@ st.write("Merged columns:", merged_df.shape[1])
 
 st.dataframe(merged_df.head(20), use_container_width=True)
 
+st.markdown("### Why merge the datasets?")
+st.write(
+    """
+    Merging the two datasets allows us to connect information from different levels of the collision records.
+    This gives us a broader view of crash patterns and helps support more meaningful analysis.
+    """
+)
+
 # =====================================================
 # 5️⃣ crashes by day of week analysis
 # =====================================================
@@ -119,6 +133,13 @@ unique_crashes = merged_df.drop_duplicates(subset="collision_id").copy()
 # =====================================================
 # Daily Trend
 # =====================================================
+st.markdown("### Daily Trend Analysis")
+st.write(
+    """
+    This line chart shows how the number of crashes changes over time in 2026.
+    It helps us see whether crash counts remain stable or fluctuate across different days.
+    """
+)
 
 unique_crashes["date"] = unique_crashes["crash_date_x"].dt.date
 
@@ -133,8 +154,40 @@ daily_chart = (
 st.subheader("Crashes by Day (2026 Live)")
 st.altair_chart(daily_chart, width="stretch")
 
+# markdowm
+st.markdown("### Daily Trend Takeaway")
+st.write(
+    """
+    The daily trend visualization helps us monitor short-term variation in crash activity.
+    This is useful for identifying peaks, drops, or irregular patterns in the live dataset.
+    """
+)
+st.markdown("### Key Insights")
+
+st.write("""
+The chart shows that daily crash counts in New York City fluctuate throughout the year rather than remaining constant. 
+Most days fall between roughly 180 and 260 crashes, indicating a relatively stable baseline level of collision activity.
+
+Several spikes above 300 crashes appear during the period, suggesting that certain days experience unusually high collision activity. 
+These fluctuations may be influenced by factors such as traffic volume, commuting patterns, weather conditions, or special events.
+
+Overall, the data suggests that motor vehicle collisions occur consistently across time, with moderate daily variation but no clear long-term trend during the observed period.
+""")
+
+st.write("""
+Future analysis could explore whether these daily fluctuations are associated with specific factors such as weekday patterns, borough differences, or weather conditions.
+""")
+
 
 # Borough analysis
+st.markdown("### Borough Analysis")
+st.write(
+    """
+    This chart compares crash counts across boroughs.
+    It helps us understand whether collisions are concentrated in specific parts of the city.
+    """
+)
+
 if "borough" in unique_crashes.columns:
     borough_counts = unique_crashes["borough"].value_counts().reset_index()
 
@@ -148,3 +201,32 @@ if "borough" in unique_crashes.columns:
 
     st.subheader("Crashes by Borough (2026 Live)")
     st.altair_chart(borough_chart, use_container_width=True)
+
+# markdown
+st.markdown("### Borough Takeaway")
+st.write(
+    """
+    Comparing borough-level crash counts provides a spatial view of the dataset.
+    This can help users think about geographic differences in traffic safety patterns.
+    """
+)
+
+st.markdown("### Key Insights")
+
+st.write("""
+The chart shows that motor vehicle collisions are not evenly distributed across the five boroughs of New York City. 
+Brooklyn records the highest number of crashes, followed by Queens, while Staten Island has the lowest crash count.
+
+These differences may reflect variations in population density, traffic volume, and road network complexity across boroughs. 
+Areas with larger populations and heavier traffic flows tend to experience more collisions.
+
+This spatial comparison highlights how geographic context plays an important role in understanding urban traffic safety patterns.
+""")
+
+st.markdown("### Future Work")
+st.write(
+    """
+    In the future, we would like to use these datasets to explore more complex and more realistic public safety questions.
+    We also want to deepen the analysis by adding more comparisons, clearer interpretation, and stronger real-world context.
+    """
+)
