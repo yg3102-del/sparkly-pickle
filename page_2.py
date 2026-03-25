@@ -20,6 +20,7 @@ st.write(
 
 PROJECT_ID = "sipa-adv-c-sparkly-pickle"
 
+
 def load_person_2026_from_bigquery():
     credentials = service_account.Credentials.from_service_account_info(
         st.secrets["gcp_service_account"]
@@ -34,6 +35,7 @@ def load_person_2026_from_bigquery():
 
     df = client.query(query).to_dataframe(create_bqstorage_client=False)
     return df
+
 
 # =====================================================
 # 2️⃣ load data

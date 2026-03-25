@@ -25,9 +25,7 @@ def create_dataset_if_needed():
 
 
 def get_data():
-    params = {
-        "$limit": 50000
-    }
+    params = {"$limit": 50000}
 
     url = f"{API_URL}?{urlencode(params)}"
     df = pd.read_json(url)
