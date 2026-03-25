@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-from urllib.parse import urlencode
 from datetime import datetime
+from google.oauth2 import service_account
+from google.cloud import bigquery
 
-st.title("Motor Vehicle Collisions - Person (2026 Live)")
+st.title("Motor Vehicle Collisions - Person (BigQuery)")
 
 st.write(
     """
@@ -17,45 +18,29 @@ st.write(
 # 1️⃣ 2026-01-01 till now
 # =====================================================
 
+PROJECT_ID = "sipa-adv-c-sparkly-pickle"
 
-@st.cache_data(ttl=3600)
-def load_person_2026_live():
-    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
-    limit = 50000
-    offset = 0
-    all_data = []
+def load_person_2026_from_bigquery():
+    credentials = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"]
+    )
 
-    start_date = "2026-01-01T00:00:00"
-    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+    client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
 
-    while True:
-        query_params = {
-            "$where": f"crash_date between '{start_date}' and '{end_date}'",
-            "$limit": limit,
-            "$offset": offset,
-        }
+    query = """
+    SELECT *
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person`
+    """
 
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    else:
-        return pd.DataFrame()
-
+    df = client.query(query).to_dataframe()
+    return df
 
 # =====================================================
 # 2️⃣ load data
 # =====================================================
 
 with st.spinner("Loading 2026 live data..."):
-    person_df = load_person_2026_live()
+    person_df = load_person_2026_from_bigquery()
 
 if person_df.empty:
     st.warning("No 2026 data available yet.")
@@ -75,7 +60,7 @@ st.write(
     """
 )
 
-st.subheader("Dataset Summary (2026 Live)")
+st.subheader("Dataset Summary (BigQuery)")
 
 st.write("Rows loaded:", person_df.shape[0])
 st.write(
@@ -130,7 +115,7 @@ chart = (
     )
 )
 
-st.subheader("Crashes by Day of Week (2026 Live)")
+st.subheader("Crashes by Day of Week (BigQuery)")
 st.altair_chart(chart, use_container_width=True)
 
 # markdowm

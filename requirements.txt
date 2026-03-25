@@ -11,3 +11,7 @@ pandera
 ruff
 pytest
 pytest-cov
+pandas-gbq
+google-cloud-bigquery
+db-dtypes
+google-cloud-bigquery-storage
