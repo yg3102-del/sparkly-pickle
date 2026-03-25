@@ -32,7 +32,7 @@ def load_person_2026_from_bigquery():
     FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person`
     """
 
-    df = client.query(query).to_dataframe()
+    df = client.query(query).to_dataframe(create_bqstorage_client=False)
     return df
 
 # =====================================================
@@ -70,7 +70,7 @@ st.write(
 st.write("Last updated at:", datetime.now())
 
 st.subheader("Raw Data Preview")
-st.dataframe(person_df.head(20), use_container_width=True)
+st.dataframe(person_df.head(20), width="stretch")
 
 # =====================================================
 # 4️⃣ crashes by day of week analysis
@@ -116,7 +116,7 @@ chart = (
 )
 
 st.subheader("Crashes by Day of Week (BigQuery)")
-st.altair_chart(chart, use_container_width=True)
+st.altair_chart(chart, width="stretch")
 
 # markdowm
 st.markdown("### Key Takeaway")
