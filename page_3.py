@@ -21,6 +21,7 @@ st.write(
 
 PROJECT_ID = "sipa-adv-c-sparkly-pickle"
 
+
 @st.cache_data(ttl=3600)
 def load_person_from_bigquery():
     credentials = service_account.Credentials.from_service_account_info(
