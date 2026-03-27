@@ -43,7 +43,8 @@ The workflow is:
 
 ## App Structure
 
-The app is organized into multiple pages.
+The app is organized into multiple pages though streamlit app:
+https://sparkly-pickle-vluncnqsyee7xht3my7b7m.streamlit.app/
 
 ### `main_page.py`
 This page introduces the project and provides a starting point for users.
