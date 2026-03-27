@@ -38,14 +38,8 @@ def load_daily_counts():
     client = get_bigquery_client()
 
     query = """
-    SELECT
-        DATE(p.crash_date) AS date,
-        COUNT(DISTINCT p.collision_id) AS crashes
-    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person` AS p
-    INNER JOIN `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_crash` AS c
-        ON p.collision_id = c.collision_id
-    WHERE p.crash_date >= '2026-01-01'
-    GROUP BY date
+    SELECT date, crashes
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.daily_crash_counts_2026`
     ORDER BY date
     """
 
@@ -57,15 +51,8 @@ def load_borough_counts():
     client = get_bigquery_client()
 
     query = """
-    SELECT
-        c.borough,
-        COUNT(DISTINCT p.collision_id) AS crashes
-    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person` AS p
-    INNER JOIN `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_crash` AS c
-        ON p.collision_id = c.collision_id
-    WHERE p.crash_date >= '2026-01-01'
-      AND c.borough IS NOT NULL
-    GROUP BY c.borough
+    SELECT borough, crashes
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.borough_crash_counts_2026`
     ORDER BY crashes DESC
     """
 
@@ -80,109 +67,87 @@ with st.spinner("Loading data from BigQuery..."):
     daily_counts = load_daily_counts()
     borough_counts = load_borough_counts()
 
-
-# =====================================================
-# 4️⃣ Merge
-# =====================================================
-
-
-st.markdown("### Why merge the datasets?")
-st.write(
-    """
-    Combining the two datasets helps connect person-level information with crash-level
-    location information. This supports a broader view of collision patterns across time
-    and geography.
-    """
-)
-
-st.markdown("### Daily Trend Analysis")
-st.write(
-    """
-    This line chart shows how the number of crashes changes over time.
-    It helps us see whether crash counts remain relatively stable or fluctuate across days.
-    """
-)
-
-daily_chart = (
-    alt.Chart(daily_counts)
-    .mark_line()
-    .encode(x="date:T", y="crashes:Q", tooltip=["date", "crashes"])
-)
-
-st.subheader("Crashes by Day (BigQuery)")
-st.altair_chart(daily_chart, width="stretch")
+if daily_counts.empty:
+    st.warning("No data available.")
+    st.stop()
 
 # =====================================================
 # Daily Trend
 # =====================================================
 
 
-st.markdown("### Daily Trend Takeaway")
+st.markdown("### Daily Trend Analysis")
+
 st.write(
     """
-    The daily trend chart provides a simple view of short-term variation in collision activity.
-    It helps identify whether there are spikes, drops, or recurring patterns over time.
+    This chart shows how crash counts change over time.
+    It helps identify fluctuations and short-term patterns in collision activity.
     """
 )
 
-st.markdown("### Key Insights")
-st.write(
-    """
-The chart shows that daily crash counts in New York City vary over time rather than remaining constant.
-Most days fall within a moderate range, suggesting a relatively stable baseline level of collision activity.
-
-Some days still show noticeable spikes, which may reflect changes in traffic volume, commuting patterns,
-weather conditions, or other short-term factors.
-
-Overall, the pattern suggests that collisions occur consistently across time, with moderate daily variation.
-"""
-)
-
-st.markdown("### Borough Analysis")
-st.write(
-    """
-    This bar chart compares crash counts across boroughs.
-    It helps show whether collisions are concentrated in specific parts of the city.
-    """
-)
-
-if not borough_counts.empty:
-    borough_chart = (
-        alt.Chart(borough_counts)
-        .mark_bar()
-        .encode(x="borough:N", y="crashes:Q", tooltip=["borough", "crashes"])
+daily_chart = (
+    alt.Chart(daily_counts)
+    .mark_line()
+    .encode(
+        x="date:T",
+        y="crashes:Q",
+        tooltip=["date", "crashes"],
     )
-
-    st.subheader("Crashes by Borough (BigQuery)")
-    st.altair_chart(borough_chart, width="stretch")
-
-st.markdown("### Borough Takeaway")
-st.write(
-    """
-    Borough-level comparison gives a spatial view of collision patterns.
-    This helps users think about how traffic safety may vary across different parts of the city.
-    """
 )
 
-st.markdown("### Key Insights")
+st.subheader("Crashes by Day (BigQuery)")
+st.altair_chart(daily_chart, width="stretch")
+
+st.markdown("### Key Insight")
+
 st.write(
     """
-The chart shows that motor vehicle collisions are not evenly distributed across the boroughs of New York City.
-Some boroughs record substantially more crashes than others.
+Crash counts fluctuate across time rather than remaining constant.
+Most days fall within a moderate range, suggesting a relatively stable baseline level of collisions.
 
-These differences may reflect variation in population density, traffic volume, and road network complexity.
-
-This comparison highlights how geographic context plays an important role in understanding urban traffic safety patterns.
+Occasional spikes indicate days with unusually high activity, which may be influenced by traffic patterns,
+weather conditions, or other external factors.
 """
 )
 
-st.markdown("### Future Work")
+# =====================================================
+# Borough Analysis
+# =====================================================
+st.markdown("### Borough Analysis")
+
 st.write(
     """
-    In the future, we would like to extend this analysis with more variables and more detailed comparisons.
-    We also want to connect these patterns to broader public safety questions.
-    """
+This chart compares crash counts across boroughs,
+highlighting geographic differences in collision patterns.
+"""
 )
 
+borough_chart = (
+    alt.Chart(borough_counts)
+    .mark_bar()
+    .encode(
+        x="borough:N",
+        y="crashes:Q",
+        tooltip=["borough", "crashes"],
+    )
+)
+
+st.subheader("Crashes by Borough (BigQuery)")
+st.altair_chart(borough_chart, width="stretch")
+
+st.markdown("### Key Insight")
+
+st.write(
+    """
+The borough-level comparison reveals that motor vehicle collisions are unevenly distributed across New York City. Some boroughs experience significantly higher crash counts, indicating spatial concentration of traffic risk.
+These differences are likely driven by variations in population density, traffic volume, and urban infrastructure. Boroughs with higher levels of economic activity and mobility tend to exhibit greater exposure to collision risk.
+This spatial inequality suggests that traffic safety challenges are not uniform across the city. Instead, they are context-dependent and require localized policy responses. For example, high-risk boroughs may benefit from targeted interventions such as traffic calming measures, improved pedestrian infrastructure, and stricter enforcement.
+From a policy perspective, the findings highlight the importance of geographically differentiated strategies rather than one-size-fits-all solutions when addressing urban traffic safety.
+"""
+)
+
+# =====================================================
+# Load time
+# =====================================================
 elapsed = time.time() - start_time
 st.caption(f"Page loaded in {elapsed:.2f} seconds")
