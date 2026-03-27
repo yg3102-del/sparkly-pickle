@@ -1,8 +1,11 @@
+import time
 import streamlit as st
 import pandas as pd
 import altair as alt
-from urllib.parse import urlencode
-from datetime import datetime
+from google.oauth2 import service_account
+from google.cloud import bigquery
+
+start_time = time.time()
 
 st.title("Motor Vehicle Collisions - Merged Dataset (2026 Live)")
 st.write(
@@ -16,37 +19,22 @@ st.write(
 # 1️⃣ real-time data loading for 2026
 # =====================================================
 
+PROJECT_ID = "sipa-adv-c-sparkly-pickle"
 
 @st.cache_data(ttl=3600)
-def load_person_2026_live():
-    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
-    limit = 50000
-    offset = 0
-    all_data = []
+def load_person_from_bigquery():
+    credentials = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"]
+    )
+    client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
 
-    start_date = "2026-01-01T00:00:00"
-    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+    query = """
+    SELECT collision_id, crash_date
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person`
+    """
 
-    while True:
-        query_params = {
-            "$where": f"crash_date between '{start_date}' and '{end_date}'",
-            "$limit": limit,
-            "$offset": offset,
-        }
-
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    else:
-        return pd.DataFrame()
+    df = client.query(query).to_dataframe(create_bqstorage_client=False)
+    return df
 
 
 # =====================================================
@@ -55,47 +43,31 @@ def load_person_2026_live():
 
 
 @st.cache_data(ttl=3600)
-def load_crash_2026_live():
-    base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
-    limit = 50000
-    offset = 0
-    all_data = []
+def load_crash_from_bigquery():
+    credentials = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"]
+    )
+    client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
 
-    start_date = "2026-01-01T00:00:00"
-    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+    query = """
+    SELECT collision_id, crash_date, borough
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_crash`
+    """
 
-    while True:
-        query_params = {
-            "$where": f"crash_date between '{start_date}' and '{end_date}'",
-            "$limit": limit,
-            "$offset": offset,
-        }
-
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    else:
-        return pd.DataFrame()
+    df = client.query(query).to_dataframe(create_bqstorage_client=False)
+    return df
 
 
 # =====================================================
 # 3️⃣ load data
 # =====================================================
 
-with st.spinner("Loading 2026 live data..."):
-    person_df = load_person_2026_live()
-    crash_df = load_crash_2026_live()
+with st.spinner("Loading data from BigQuery..."):
+    person_df = load_person_from_bigquery()
+    crash_df = load_crash_from_bigquery()
 
 if person_df.empty or crash_df.empty:
-    st.warning("No 2026 data available yet.")
+    st.warning("No data available.")
     st.stop()
 
 person_df["crash_date"] = pd.to_datetime(person_df["crash_date"], errors="coerce")
@@ -114,7 +86,7 @@ st.write("Crash rows:", crash_df.shape[0])
 st.write("Merged rows:", merged_df.shape[0])
 st.write("Merged columns:", merged_df.shape[1])
 
-st.dataframe(merged_df.head(20), use_container_width=True)
+st.dataframe(merged_df.head(20), width="stretch")
 
 st.markdown("### Why merge the datasets?")
 st.write(
@@ -151,7 +123,7 @@ daily_chart = (
     .encode(x="date:T", y="crashes:Q", tooltip=["date", "crashes"])
 )
 
-st.subheader("Crashes by Day (2026 Live)")
+st.subheader("Crashes by Day (BigQuery)")
 st.altair_chart(daily_chart, width="stretch")
 
 # markdowm
@@ -230,3 +202,6 @@ st.write(
     We also want to deepen the analysis by adding more comparisons, clearer interpretation, and stronger real-world context.
     """
 )
+
+elapsed = time.time() - start_time
+st.caption(f"Page loaded in {elapsed:.2f} seconds")
