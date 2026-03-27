@@ -1,60 +1,78 @@
+import time
 import streamlit as st
 import pandas as pd
 import altair as alt
-from datetime import datetime
 from google.oauth2 import service_account
 from google.cloud import bigquery
+
+start_time = time.time()
 
 st.title("Motor Vehicle Collisions - Person (BigQuery)")
 
 st.write(
     """
-    This page uses the 2026 live person-level motor vehicle collisions dataset from NYC Open Data.
-    It provides a basic summary of the dataset and explores how crash frequency varies by day of the week.
+    This page uses the person-level motor vehicle collisions dataset stored in BigQuery.
+    It focuses on how crash frequency varies by day of the week.
     """
 )
-
-# =====================================================
-# 1️⃣ 2026-01-01 till now
-# =====================================================
 
 PROJECT_ID = "sipa-adv-c-sparkly-pickle"
 
 
-def load_person_2026_from_bigquery():
+def get_bigquery_client():
     credentials = service_account.Credentials.from_service_account_info(
         st.secrets["gcp_service_account"]
     )
+    return bigquery.Client(credentials=credentials, project=PROJECT_ID)
 
-    client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
+
+@st.cache_data(ttl=3600)
+def load_weekday_counts():
+    client = get_bigquery_client()
 
     query = """
-    SELECT *
-    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person`
+    WITH unique_crashes AS (
+        SELECT
+            collision_id,
+            MIN(crash_date) AS crash_date
+        FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_person`
+        WHERE crash_date IS NOT NULL
+        GROUP BY collision_id
+    )
+    SELECT
+        FORMAT_DATE('%A', DATE(crash_date)) AS weekday,
+        COUNT(*) AS crashes
+    FROM unique_crashes
+    GROUP BY weekday
     """
 
     df = client.query(query).to_dataframe(create_bqstorage_client=False)
+
+    weekday_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
+    df["weekday"] = pd.Categorical(
+        df["weekday"], categories=weekday_order, ordered=True
+    )
+    df = df.sort_values("weekday")
+
     return df
 
 
-# =====================================================
-# 2️⃣ load data
-# =====================================================
+with st.spinner("Loading data from BigQuery..."):
+    weekday_counts = load_weekday_counts()
 
-with st.spinner("Loading 2026 live data..."):
-    person_df = load_person_2026_from_bigquery()
-
-if person_df.empty:
-    st.warning("No 2026 data available yet.")
+if weekday_counts.empty:
+    st.warning("No data available.")
     st.stop()
 
-
-person_df["crash_date"] = pd.to_datetime(person_df["crash_date"], errors="coerce")
-person_df = person_df.dropna(subset=["crash_date"])
-
-# =====================================================
-# 3️⃣ basic summary and raw data preview
-# =====================================================
 st.markdown("### Page Goal")
 st.write(
     """
@@ -62,29 +80,13 @@ st.write(
     """
 )
 
-st.subheader("Dataset Summary (BigQuery)")
-
-st.write("Rows loaded:", person_df.shape[0])
+st.markdown("### Why this chart matters")
 st.write(
-    "Date range:", person_df["crash_date"].min(), "to", person_df["crash_date"].max()
+    """
+    Looking at crashes by day of the week helps us identify whether collisions are distributed evenly
+    or whether certain days show higher crash frequency.
+    """
 )
-
-st.write("Last updated at:", datetime.now())
-
-st.subheader("Raw Data Preview")
-st.dataframe(person_df.head(20), width="stretch")
-
-# =====================================================
-# 4️⃣ crashes by day of week analysis
-# =====================================================
-
-unique_crashes = person_df.drop_duplicates(subset="collision_id").copy()
-
-unique_crashes["weekday"] = unique_crashes["crash_date"].dt.day_name()
-
-weekday_counts = unique_crashes["weekday"].value_counts().reset_index()
-
-weekday_counts.columns = ["weekday", "crashes"]
 
 weekday_order = [
     "Monday",
@@ -96,23 +98,12 @@ weekday_order = [
     "Sunday",
 ]
 
-# =====================================================
-# 5️⃣ Visualization
-# =====================================================
-st.markdown("### Why this chart matters")
-st.write(
-    """
-    Looking at crashes by day of the week helps us identify whether collisions are distributed evenly
-    or whether certain days show higher crash frequency.
-    """
-)
-
 chart = (
     alt.Chart(weekday_counts)
     .mark_bar()
     .encode(
         x=alt.X("weekday:N", sort=weekday_order),
-        y="crashes:Q",
+        y=alt.Y("crashes:Q"),
         tooltip=["weekday", "crashes"],
     )
 )
@@ -120,7 +111,6 @@ chart = (
 st.subheader("Crashes by Day of Week (BigQuery)")
 st.altair_chart(chart, width="stretch")
 
-# markdowm
 st.markdown("### Key Takeaway")
 st.write(
     """
@@ -128,14 +118,19 @@ st.write(
     It helps us begin identifying whether weekdays or weekends show different collision patterns.
     """
 )
-st.markdown("### Key Insights")
 
-st.write("""
+st.markdown("### Key Insights")
+st.write(
+    """
 The chart shows that motor vehicle collisions vary across different days of the week rather than being evenly distributed.
 
-Crash counts gradually increase toward the end of the work week, with Friday recording the highest number of collisions. 
+Crash counts gradually increase toward the end of the work week, with Friday recording the highest number of collisions.
 This may reflect higher traffic volumes and increased travel activity as the week progresses.
 
 Weekend patterns differ slightly, with Saturday remaining relatively high but Sunday showing the lowest crash count.
 Overall, the pattern suggests that commuting behavior and traffic intensity likely play an important role in shaping collision risk.
-""")
+"""
+)
+
+elapsed = time.time() - start_time
+st.caption(f"Page loaded in {elapsed:.2f} seconds")
