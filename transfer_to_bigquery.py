@@ -15,6 +15,7 @@ CRASH_API_URL = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
 DAILY_TABLE_ID = "daily_crash_counts_2026"
 BOROUGH_TABLE_ID = "borough_crash_counts_2026"
 
+
 def create_dataset_if_needed():
     client = bigquery.Client(project=PROJECT_ID)
     dataset_full_id = f"{PROJECT_ID}.{DATASET_ID}"
@@ -108,7 +109,7 @@ def get_crash_data():
     df = df[needed_cols]
     df["crash_date"] = pd.to_datetime(df["crash_date"], errors="coerce")
     return df
-    
+
 
 def upload_to_bigquery(df, table_id):
     pandas_gbq.to_gbq(
@@ -118,6 +119,7 @@ def upload_to_bigquery(df, table_id):
         if_exists="replace",
     )
     print(f"Uploaded to {table_id}.")
+
 
 def create_aggregated_tables():
     client = bigquery.Client(project=PROJECT_ID)
