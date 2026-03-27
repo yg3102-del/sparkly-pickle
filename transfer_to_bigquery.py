@@ -12,6 +12,9 @@ CRASH_TABLE_ID = "motor_vehicle_collisions_crash"
 PERSON_API_URL = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
 CRASH_API_URL = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
 
+DAILY_TABLE_ID = "daily_crash_counts_2026"
+BOROUGH_TABLE_ID = "borough_crash_counts_2026"
+
 
 def create_dataset_if_needed():
     client = bigquery.Client(project=PROJECT_ID)
@@ -118,6 +121,43 @@ def upload_to_bigquery(df, table_id):
     print(f"Uploaded to {table_id}.")
 
 
+def create_aggregated_tables():
+    client = bigquery.Client(project=PROJECT_ID)
+
+    daily_query = f"""
+    CREATE OR REPLACE TABLE `{PROJECT_ID}.{DATASET_ID}.{DAILY_TABLE_ID}` AS
+    SELECT
+        DATE(p.crash_date) AS date,
+        COUNT(DISTINCT p.collision_id) AS crashes
+    FROM `{PROJECT_ID}.{DATASET_ID}.{PERSON_TABLE_ID}` AS p
+    INNER JOIN `{PROJECT_ID}.{DATASET_ID}.{CRASH_TABLE_ID}` AS c
+        ON p.collision_id = c.collision_id
+    WHERE p.crash_date >= '2026-01-01'
+    GROUP BY date
+    ORDER BY date
+    """
+
+    borough_query = f"""
+    CREATE OR REPLACE TABLE `{PROJECT_ID}.{DATASET_ID}.{BOROUGH_TABLE_ID}` AS
+    SELECT
+        c.borough,
+        COUNT(DISTINCT p.collision_id) AS crashes
+    FROM `{PROJECT_ID}.{DATASET_ID}.{PERSON_TABLE_ID}` AS p
+    INNER JOIN `{PROJECT_ID}.{DATASET_ID}.{CRASH_TABLE_ID}` AS c
+        ON p.collision_id = c.collision_id
+    WHERE p.crash_date >= '2026-01-01'
+      AND c.borough IS NOT NULL
+    GROUP BY c.borough
+    ORDER BY crashes DESC
+    """
+
+    client.query(daily_query).result()
+    client.query(borough_query).result()
+
+    print(f"Created {DAILY_TABLE_ID}.")
+    print(f"Created {BOROUGH_TABLE_ID}.")
+
+
 def main():
     create_dataset_if_needed()
 
@@ -132,6 +172,8 @@ def main():
     print(crash_df.head())
     print(crash_df.shape)
     upload_to_bigquery(crash_df, CRASH_TABLE_ID)
+
+    create_aggregated_tables()
 
 
 if __name__ == "__main__":

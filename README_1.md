@@ -90,10 +90,5 @@ The chart suggests that collisions are not distributed evenly across the week. C
 - **Google Cloud**
 - **NYC Open Data API**
 
-## How to Run the Project
 
-### 1. Clone the repository
 
-```bash
-git clone <your-repo-url>
-cd sparkly-pickle-1
