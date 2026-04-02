@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from urllib.parse import urlencode
+import matplotlib.pyplot as plt
 
 st.title("Motor Vehicle Collisions - Person (2022)")
 
@@ -44,7 +45,7 @@ st.write(
 st.dataframe(person_df.head(20))
 
 
-import matplotlib.pyplot as plt
+
 
 person_df["crash_date"] = pd.to_datetime(person_df["crash_date"])
 
