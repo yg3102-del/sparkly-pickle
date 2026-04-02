@@ -1,232 +1,361 @@
+import time
 import streamlit as st
 import pandas as pd
 import altair as alt
-from urllib.parse import urlencode
-from datetime import datetime
+from google.oauth2 import service_account
+from google.cloud import bigquery
 
-st.title("Motor Vehicle Collisions - Merged Dataset (2026 Live)")
+start_time = time.time()
+
+st.title("Motor Vehicle Collisions — Merged Dataset (2026 Live)")
 st.write(
     """
-    This page merges two live 2026 NYC collision datasets to support broader exploratory analysis.
-    By combining person-level and crash-level data, we can examine trends across time and location.
+    Combining crash-level and person-level BigQuery data to examine
+    temporal trends, geographic patterns, and contributing factors.
     """
 )
 
-# =====================================================
-# 1️⃣ real-time data loading for 2026
-# =====================================================
+# ─────────────────────────────────────────────
+# BigQuery client — unchanged from original
+# ─────────────────────────────────────────────
+
+PROJECT_ID = "sipa-adv-c-sparkly-pickle"
+
+
+def get_bigquery_client():
+    credentials = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"]
+    )
+    return bigquery.Client(credentials=credentials, project=PROJECT_ID)
+
+
+# ─────────────────────────────────────────────
+# Data loaders
+# ─────────────────────────────────────────────
 
 
 @st.cache_data(ttl=3600)
-def load_person_2026_live():
-    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
-    limit = 50000
-    offset = 0
-    all_data = []
-
-    start_date = "2026-01-01T00:00:00"
-    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
-
-    while True:
-        query_params = {
-            "$where": f"crash_date between '{start_date}' and '{end_date}'",
-            "$limit": limit,
-            "$offset": offset,
-        }
-
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    else:
-        return pd.DataFrame()
-
-
-# =====================================================
-# 2️⃣ Crash data loading for 2026
-# =====================================================
+def load_kpi():
+    client = get_bigquery_client()
+    query = """
+    SELECT
+        SUM(crashes)                          AS total_crashes,
+        MAX(crashes)                          AS peak_day_crashes,
+        (SELECT date FROM `sipa-adv-c-sparkly-pickle.nyc_data.daily_crash_counts_2026`
+         ORDER BY crashes DESC LIMIT 1)       AS peak_date
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.daily_crash_counts_2026`
+    """
+    return client.query(query).to_dataframe(create_bqstorage_client=False).iloc[0]
 
 
 @st.cache_data(ttl=3600)
-def load_crash_2026_live():
-    base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
-    limit = 50000
-    offset = 0
-    all_data = []
-
-    start_date = "2026-01-01T00:00:00"
-    end_date = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
-
-    while True:
-        query_params = {
-            "$where": f"crash_date between '{start_date}' and '{end_date}'",
-            "$limit": limit,
-            "$offset": offset,
-        }
-
-        url = f"{base_url}?{urlencode(query_params)}"
-        df = pd.read_json(url)
-
-        if df.empty:
-            break
-
-        all_data.append(df)
-        offset += limit
-
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    else:
-        return pd.DataFrame()
+def load_daily_counts():
+    client = get_bigquery_client()
+    query = """
+    SELECT date, crashes
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.daily_crash_counts_2026`
+    ORDER BY date
+    """
+    return client.query(query).to_dataframe(create_bqstorage_client=False)
 
 
-# =====================================================
-# 3️⃣ load data
-# =====================================================
+@st.cache_data(ttl=3600)
+def load_borough_counts():
+    client = get_bigquery_client()
+    query = """
+    SELECT borough, crashes
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.borough_crash_counts_2026`
+    WHERE borough IS NOT NULL AND TRIM(borough) != ''
+    ORDER BY crashes DESC
+    """
+    return client.query(query).to_dataframe(create_bqstorage_client=False)
 
-with st.spinner("Loading 2026 live data..."):
-    person_df = load_person_2026_live()
-    crash_df = load_crash_2026_live()
 
-if person_df.empty or crash_df.empty:
-    st.warning("No 2026 data available yet.")
+@st.cache_data(ttl=3600)
+def load_contributing_factors():
+    client = get_bigquery_client()
+    query = """
+    SELECT
+        contributing_factor_vehicle_1 AS factor,
+        COUNT(*) AS crashes
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_crash`
+    WHERE contributing_factor_vehicle_1 IS NOT NULL
+      AND LOWER(contributing_factor_vehicle_1) NOT IN ('unspecified', '')
+      AND EXTRACT(YEAR FROM crash_date) = 2026
+    GROUP BY factor
+    ORDER BY crashes DESC
+    LIMIT 10
+    """
+    return client.query(query).to_dataframe(create_bqstorage_client=False)
+
+
+@st.cache_data(ttl=3600)
+def load_victim_trends():
+    client = get_bigquery_client()
+    query = """
+    SELECT
+        DATE_TRUNC(crash_date, MONTH)          AS month,
+        SUM(number_of_pedestrians_killed)      AS pedestrians_killed,
+        SUM(number_of_cyclist_killed)          AS cyclists_killed,
+        SUM(number_of_motorist_killed)         AS motorists_killed
+    FROM `sipa-adv-c-sparkly-pickle.nyc_data.motor_vehicle_collisions_crash`
+    WHERE EXTRACT(YEAR FROM crash_date) = 2026
+    GROUP BY month
+    ORDER BY month
+    """
+    return client.query(query).to_dataframe(create_bqstorage_client=False)
+
+
+# ─────────────────────────────────────────────
+# Load all data
+# ─────────────────────────────────────────────
+
+with st.spinner("Loading data from BigQuery..."):
+    kpi = load_kpi()
+    daily_counts = load_daily_counts()
+    borough_counts = load_borough_counts()
+    factors_df = load_contributing_factors()
+    victim_df = load_victim_trends()
+
+if daily_counts.empty:
+    st.warning("No data available.")
     st.stop()
 
-person_df["crash_date"] = pd.to_datetime(person_df["crash_date"], errors="coerce")
-crash_df["crash_date"] = pd.to_datetime(crash_df["crash_date"], errors="coerce")
+# ─────────────────────────────────────────────
+# KPI metrics row
+# ─────────────────────────────────────────────
 
-# =====================================================
-# 4️⃣ Merge
-# =====================================================
+st.markdown("### At a glance")
 
-merged_df = pd.merge(person_df, crash_df, on="collision_id", how="inner")
+col1, col2, col3 = st.columns(3)
+col1.metric("Total crashes (YTD)", f"{int(kpi['total_crashes']):,}")
+col2.metric("Peak single day", f"{int(kpi['peak_day_crashes']):,}")
+col3.metric(
+    "Worst borough",
+    borough_counts.iloc[0]["borough"].title() if not borough_counts.empty else "N/A",
+)
 
-st.subheader("Merged Dataset Summary")
+# ─────────────────────────────────────────────
+# Chart 1 — Daily trend + 7-day rolling average
+# ─────────────────────────────────────────────
 
-st.write("Person rows:", person_df.shape[0])
-st.write("Crash rows:", crash_df.shape[0])
-st.write("Merged rows:", merged_df.shape[0])
-st.write("Merged columns:", merged_df.shape[1])
-
-st.dataframe(merged_df.head(20), use_container_width=True)
-
-st.markdown("### Why merge the datasets?")
+st.markdown("---")
+st.markdown("### Daily trend — crashes over time")
 st.write(
     """
-    Merging the two datasets allows us to connect information from different levels of the collision records.
-    This gives us a broader view of crash patterns and helps support more meaningful analysis.
+    The raw daily count (thin line) shows day-to-day volatility.
+    The 7-day rolling average (thick line) smooths out noise to reveal the underlying trend.
     """
 )
 
-# =====================================================
-# 5️⃣ crashes by day of week analysis
-# =====================================================
-
-unique_crashes = merged_df.drop_duplicates(subset="collision_id").copy()
-
-# =====================================================
-# Daily Trend
-# =====================================================
-st.markdown("### Daily Trend Analysis")
-st.write(
-    """
-    This line chart shows how the number of crashes changes over time in 2026.
-    It helps us see whether crash counts remain stable or fluctuate across different days.
-    """
+daily_counts["date"] = pd.to_datetime(daily_counts["date"])
+daily_counts = daily_counts.sort_values("date")
+daily_counts["rolling_7"] = (
+    daily_counts["crashes"].rolling(7, min_periods=1).mean().round(1)
 )
 
-unique_crashes["date"] = unique_crashes["crash_date_x"].dt.date
-
-daily_counts = unique_crashes.groupby("date").size().reset_index(name="crashes")
-
-daily_chart = (
+raw_line = (
     alt.Chart(daily_counts)
-    .mark_line()
-    .encode(x="date:T", y="crashes:Q", tooltip=["date", "crashes"])
+    .mark_line(opacity=0.35, strokeWidth=1)
+    .encode(
+        x=alt.X("date:T", title="Date"),
+        y=alt.Y("crashes:Q", title="Crashes"),
+        tooltip=[
+            alt.Tooltip("date:T", title="Date"),
+            alt.Tooltip("crashes:Q", title="Crashes"),
+        ],
+    )
 )
 
-st.subheader("Crashes by Day (2026 Live)")
-st.altair_chart(daily_chart, width="stretch")
+rolling_line = (
+    alt.Chart(daily_counts)
+    .mark_line(strokeWidth=2.5, color="#185FA5")
+    .encode(
+        x="date:T",
+        y=alt.Y("rolling_7:Q", title="Crashes"),
+        tooltip=[
+            alt.Tooltip("date:T", title="Date"),
+            alt.Tooltip("rolling_7:Q", title="7-day avg", format=".1f"),
+        ],
+    )
+)
 
-# markdowm
-st.markdown("### Daily Trend Takeaway")
+st.altair_chart(
+    (raw_line + rolling_line).properties(height=300), use_container_width=True
+)
+
 st.write(
     """
-    The daily trend visualization helps us monitor short-term variation in crash activity.
-    This is useful for identifying peaks, drops, or irregular patterns in the live dataset.
+    Crash counts fluctuate day to day but the rolling average reveals a
+    relatively stable baseline. Occasional spikes may reflect weather events,
+    holidays, or other external factors.
     """
 )
-st.markdown("### Key Insights")
 
-st.write("""
-The chart shows that daily crash counts in New York City fluctuate throughout the year rather than remaining constant. 
-Most days fall between roughly 180 and 260 crashes, indicating a relatively stable baseline level of collision activity.
+# ─────────────────────────────────────────────
+# Chart 2 — Borough comparison (interactive)
+# ─────────────────────────────────────────────
 
-Several spikes above 300 crashes appear during the period, suggesting that certain days experience unusually high collision activity. 
-These fluctuations may be influenced by factors such as traffic volume, commuting patterns, weather conditions, or special events.
+st.markdown("---")
+st.markdown("### Crashes by borough")
+st.write("Click a bar to highlight it. Hover for exact counts.")
 
-Overall, the data suggests that motor vehicle collisions occur consistently across time, with moderate daily variation but no clear long-term trend during the observed period.
-""")
+borough_counts["borough"] = borough_counts["borough"].str.title()
 
-st.write("""
-Future analysis could explore whether these daily fluctuations are associated with specific factors such as weekday patterns, borough differences, or weather conditions.
-""")
+selection = alt.selection_point(fields=["borough"])
 
+borough_chart = (
+    alt.Chart(borough_counts)
+    .mark_bar()
+    .encode(
+        x=alt.X("crashes:Q", title="Number of crashes"),
+        y=alt.Y("borough:N", sort="-x", title=None),
+        color=alt.condition(selection, alt.value("#185FA5"), alt.value("#B5D4F4")),
+        tooltip=[
+            alt.Tooltip("borough:N", title="Borough"),
+            alt.Tooltip("crashes:Q", title="Crashes", format=","),
+        ],
+    )
+    .add_params(selection)
+    .properties(height=220)
+)
 
-# Borough analysis
-st.markdown("### Borough Analysis")
+st.altair_chart(borough_chart, use_container_width=True)
+
 st.write(
     """
-    This chart compares crash counts across boroughs.
-    It helps us understand whether collisions are concentrated in specific parts of the city.
+    Collisions are unevenly distributed across the five boroughs.
+    Brooklyn and Queens consistently lead, likely due to higher population
+    density and traffic volume. Staten Island records the fewest crashes.
     """
 )
 
-if "borough" in unique_crashes.columns:
-    borough_counts = unique_crashes["borough"].value_counts().reset_index()
+# ─────────────────────────────────────────────
+# Chart 3 — Top contributing factors
+# ─────────────────────────────────────────────
 
-    borough_counts.columns = ["borough", "crashes"]
+st.markdown("---")
+st.markdown("### Top 10 contributing factors")
+st.write(
+    "What causes most crashes? Based on the primary contributing factor recorded by police."
+)
 
-    borough_chart = (
-        alt.Chart(borough_counts)
-        .mark_bar()
-        .encode(x="borough:N", y="crashes:Q", tooltip=["borough", "crashes"])
+factors_chart = (
+    alt.Chart(factors_df)
+    .mark_bar(color="#1D9E75")
+    .encode(
+        x=alt.X("crashes:Q", title="Number of crashes"),
+        y=alt.Y("factor:N", sort="-x", title=None),
+        tooltip=[
+            alt.Tooltip("factor:N", title="Factor"),
+            alt.Tooltip("crashes:Q", title="Crashes", format=","),
+        ],
+    )
+    .properties(height=320)
+)
+
+st.altair_chart(factors_chart, use_container_width=True)
+
+st.write(
+    """
+    Driver inattention and distraction is typically the leading cause by a wide margin,
+    followed by failure to yield and following too closely. These behavioral factors
+    suggest that enforcement and awareness campaigns may be more effective than
+    infrastructure changes alone.
+    """
+)
+
+# ─────────────────────────────────────────────
+# Chart 4 — Victim type killed per month
+# ─────────────────────────────────────────────
+
+if not victim_df.empty and victim_df["month"].notna().any():
+    st.markdown("---")
+    st.markdown("### Fatalities by victim type — monthly")
+    st.write(
+        "Tracking pedestrian, cyclist, and motorist fatalities over time "
+        "to monitor Vision Zero progress."
     )
 
-    st.subheader("Crashes by Borough (2026 Live)")
-    st.altair_chart(borough_chart, use_container_width=True)
+    victim_df["month"] = pd.to_datetime(victim_df["month"])
 
-# markdown
-st.markdown("### Borough Takeaway")
-st.write(
-    """
-    Comparing borough-level crash counts provides a spatial view of the dataset.
-    This can help users think about geographic differences in traffic safety patterns.
-    """
-)
+    victim_long = victim_df.melt(
+        id_vars="month",
+        value_vars=["pedestrians_killed", "cyclists_killed", "motorists_killed"],
+        var_name="victim_type",
+        value_name="killed",
+    )
+    victim_long["victim_type"] = victim_long["victim_type"].map(
+        {
+            "pedestrians_killed": "Pedestrian",
+            "cyclists_killed": "Cyclist",
+            "motorists_killed": "Motorist",
+        }
+    )
 
-st.markdown("### Key Insights")
+    victim_color = alt.Scale(
+        domain=["Pedestrian", "Cyclist", "Motorist"],
+        range=["#D85A30", "#1D9E75", "#185FA5"],
+    )
 
-st.write("""
-The chart shows that motor vehicle collisions are not evenly distributed across the five boroughs of New York City. 
-Brooklyn records the highest number of crashes, followed by Queens, while Staten Island has the lowest crash count.
+    victim_chart = (
+        alt.Chart(victim_long)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("month:T", title="Month"),
+            y=alt.Y("killed:Q", title="Fatalities"),
+            color=alt.Color(
+                "victim_type:N",
+                scale=victim_color,
+                legend=alt.Legend(title="Victim type", orient="top"),
+            ),
+            tooltip=[
+                alt.Tooltip("month:T", title="Month"),
+                alt.Tooltip("victim_type:N", title="Type"),
+                alt.Tooltip("killed:Q", title="Killed"),
+            ],
+        )
+        .properties(height=280)
+    )
 
-These differences may reflect variations in population density, traffic volume, and road network complexity across boroughs. 
-Areas with larger populations and heavier traffic flows tend to experience more collisions.
+    st.altair_chart(victim_chart, use_container_width=True)
 
-This spatial comparison highlights how geographic context plays an important role in understanding urban traffic safety patterns.
-""")
+    st.write(
+        """
+        Pedestrians consistently account for the largest share of fatalities.
+        Monitoring these trends monthly helps assess whether Vision Zero
+        initiatives are reducing the most vulnerable road users' risk.
+        """
+    )
 
-st.markdown("### Future Work")
-st.write(
-    """
-    In the future, we would like to use these datasets to explore more complex and more realistic public safety questions.
-    We also want to deepen the analysis by adding more comparisons, clearer interpretation, and stronger real-world context.
-    """
-)
+# ─────────────────────────────────────────────
+# Download
+# ─────────────────────────────────────────────
+
+st.markdown("---")
+with st.expander("Download underlying data"):
+    st.download_button(
+        label="Download daily counts (CSV)",
+        data=daily_counts.to_csv(index=False),
+        file_name="daily_crash_counts_2026.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        label="Download borough counts (CSV)",
+        data=borough_counts.to_csv(index=False),
+        file_name="borough_crash_counts_2026.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        label="Download contributing factors (CSV)",
+        data=factors_df.to_csv(index=False),
+        file_name="contributing_factors_2026.csv",
+        mime="text/csv",
+    )
+
+# ─────────────────────────────────────────────
+# Load time
+# ─────────────────────────────────────────────
+
+elapsed = time.time() - start_time
+st.caption(f"Page loaded in {elapsed:.2f} seconds")
