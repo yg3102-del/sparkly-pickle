@@ -45,8 +45,6 @@ st.write(
 st.dataframe(person_df.head(20))
 
 
-
-
 person_df["crash_date"] = pd.to_datetime(person_df["crash_date"])
 
 unique_crashes = person_df.drop_duplicates(subset="collision_id")
