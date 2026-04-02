@@ -74,7 +74,9 @@ def load_weekday_person_type():
         "Saturday",
         "Sunday",
     ]
-    df["weekday"] = pd.Categorical(df["weekday"], categories=weekday_order, ordered=True)
+    df["weekday"] = pd.Categorical(
+        df["weekday"], categories=weekday_order, ordered=True
+    )
     return df.sort_values("weekday")
 
 
@@ -100,7 +102,9 @@ def load_hour_weekday_heatmap():
         "Saturday",
         "Sunday",
     ]
-    df["weekday"] = pd.Categorical(df["weekday"], categories=weekday_order, ordered=True)
+    df["weekday"] = pd.Categorical(
+        df["weekday"], categories=weekday_order, ordered=True
+    )
     return df
 
 
@@ -232,12 +236,38 @@ st.write(
 )
 
 heatmap_df["hour_label"] = heatmap_df["hour"].apply(
-    lambda h: "12a" if h == 0 else ("12p" if h == 12 else (f"{h}a" if h < 12 else f"{h - 12}p"))
+    lambda h: (
+        "12a"
+        if h == 0
+        else ("12p" if h == 12 else (f"{h}a" if h < 12 else f"{h - 12}p"))
+    )
 )
 
 hour_label_order = [
-    "12a", "1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a",
-    "12p", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p",
+    "12a",
+    "1a",
+    "2a",
+    "3a",
+    "4a",
+    "5a",
+    "6a",
+    "7a",
+    "8a",
+    "9a",
+    "10a",
+    "11a",
+    "12p",
+    "1p",
+    "2p",
+    "3p",
+    "4p",
+    "5p",
+    "6p",
+    "7p",
+    "8p",
+    "9p",
+    "10p",
+    "11p",
 ]
 
 brush = alt.selection_interval(encodings=["x"])
