@@ -31,7 +31,7 @@ def test_pages():
         limit=50000,
         read_json=read_json_2,
     )
-    
+
     expected_rows = 3
     assert df.shape[0] == expected_rows
     assert calls["n"] == expected_rows
