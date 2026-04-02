@@ -1,46 +1,47 @@
-import time
 import streamlit as st
 import pandas as pd
-import altair as alt
 from urllib.parse import urlencode
 
 st.title("Motor Vehicle Collisions - Person (2022)")
 
+
 @st.cache_data
 def load_person_2022():
     base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
-    
+
     all_data = []
     limit = 50000
     offset = 0
-    
+
     while True:
         query_params = {
             "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
             "$limit": limit,
-            "$offset": offset
+            "$offset": offset,
         }
-        
+
         query_string = urlencode(query_params)
         url = f"{base_url}?{query_string}"
-        
+
         df = pd.read_json(url)
-        
+
         if df.empty:
             break
-        
+
         all_data.append(df)
         offset += limit
-        
+
     return pd.concat(all_data, ignore_index=True)
+
 
 person_df = load_person_2022()
 
 st.write("Rows loaded:", person_df.shape[0])
-st.write("Date range:", person_df["crash_date"].min(), "to", person_df["crash_date"].max())
+st.write(
+    "Date range:", person_df["crash_date"].min(), "to", person_df["crash_date"].max()
+)
 
 st.dataframe(person_df.head(20))
-
 
 
 import matplotlib.pyplot as plt
@@ -53,7 +54,7 @@ unique_crashes["weekday"] = unique_crashes["crash_date"].dt.day_name()
 
 weekday_counts = unique_crashes["weekday"].value_counts()
 
-order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 weekday_counts = weekday_counts.reindex(order)
 
 fig, ax = plt.subplots()
