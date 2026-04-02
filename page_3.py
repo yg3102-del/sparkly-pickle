@@ -1,153 +1,128 @@
 import time
 import streamlit as st
-import altair as alt
-from google.oauth2 import service_account
-from google.cloud import bigquery
+import pandas as pd
+from urllib.parse import urlencode
 
-start_time = time.time()
+st.title("Motor Vehicle Collisions - Merged Dataset (2022 Only)")
 
-st.title("Motor Vehicle Collisions - Merged Dataset (2026 Live)")
-st.write(
-    """
-    This page merges two live 2026 NYC collision datasets to support broader exploratory analysis.
-    By combining person-level and crash-level data, we can examine trends across time and location.
-    """
+# =====================================================
+# 1️⃣ Load Person Data (2022)
+# =====================================================
+
+@st.cache_data
+def load_person_2022():
+    base_url = "https://data.cityofnewyork.us/resource/f55k-p6yu.json"
+    limit = 50000
+    offset = 0
+    all_data = []
+
+    while True:
+        query_params = {
+            "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
+            "$limit": limit,
+            "$offset": offset
+        }
+
+        url = f"{base_url}?{urlencode(query_params)}"
+        df = pd.read_json(url)
+
+        if df.empty:
+            break
+
+        all_data.append(df)
+        offset += limit
+
+    return pd.concat(all_data, ignore_index=True)
+
+
+# =====================================================
+# 2️⃣ Load Crash Data (2022)
+# =====================================================
+
+@st.cache_data
+def load_crash_2022():
+    base_url = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
+    limit = 50000
+    offset = 0
+    all_data = []
+
+    while True:
+        query_params = {
+            "$where": "crash_date between '2022-01-01T00:00:00' and '2022-12-31T23:59:59'",
+            "$limit": limit,
+            "$offset": offset
+        }
+
+        url = f"{base_url}?{urlencode(query_params)}"
+        df = pd.read_json(url)
+
+        if df.empty:
+            break
+
+        all_data.append(df)
+        offset += limit
+
+    return pd.concat(all_data, ignore_index=True)
+
+
+# =====================================================
+# 3️⃣ Load Both
+# =====================================================
+
+person_df = load_person_2022()
+crash_df = load_crash_2022()
+
+st.write("Person rows:", person_df.shape[0])
+st.write("Crash rows:", crash_df.shape[0])
+
+
+# =====================================================
+# 4️⃣ Merge on collision_id
+# =====================================================
+
+merged_df = pd.merge(
+    person_df,
+    crash_df,
+    on="collision_id",
+    how="inner"
 )
 
-# =====================================================
-# 1️⃣ real-time data loading for 2026
-# =====================================================
+st.write("Merged rows:", merged_df.shape[0])
+st.write("Merged columns:", merged_df.shape[1])
 
-PROJECT_ID = "sipa-adv-c-sparkly-pickle"
-
-
-def get_bigquery_client():
-    credentials = service_account.Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"]
-    )
-    return bigquery.Client(credentials=credentials, project=PROJECT_ID)
+st.dataframe(merged_df.head(20))
 
 
-# =====================================================
-# 2️⃣ Crash data loading for 2026
-# =====================================================
+import matplotlib.pyplot as plt
 
 
-@st.cache_data(ttl=3600)
-def load_daily_counts():
-    client = get_bigquery_client()
-
-    query = """
-    SELECT date, crashes
-    FROM `sipa-adv-c-sparkly-pickle.nyc_data.daily_crash_counts_2026`
-    ORDER BY date
-    """
-
-    return client.query(query).to_dataframe(create_bqstorage_client=False)
+unique_crashes = merged_df.drop_duplicates(subset="collision_id").copy()
 
 
-@st.cache_data(ttl=3600)
-def load_borough_counts():
-    client = get_bigquery_client()
+unique_crashes["crash_date"] = pd.to_datetime(unique_crashes["crash_date_y"])
 
-    query = """
-    SELECT borough, crashes
-    FROM `sipa-adv-c-sparkly-pickle.nyc_data.borough_crash_counts_2026`
-    ORDER BY crashes DESC
-    """
+unique_crashes["month"] = unique_crashes["crash_date"].dt.month
+monthly_counts = unique_crashes["month"].value_counts().sort_index()
 
-    return client.query(query).to_dataframe(create_bqstorage_client=False)
+fig1, ax1 = plt.subplots()
+monthly_counts.plot(kind="line", marker="o", ax=ax1)
 
+ax1.set_title("Crashes by Month (2022)")
+ax1.set_xlabel("Month")
+ax1.set_ylabel("Number of Crashes")
 
-# =====================================================
-# 3️⃣ load data
-# =====================================================
-
-with st.spinner("Loading data from BigQuery..."):
-    daily_counts = load_daily_counts()
-    borough_counts = load_borough_counts()
-
-if daily_counts.empty:
-    st.warning("No data available.")
-    st.stop()
-
-# =====================================================
-# Daily Trend
-# =====================================================
+st.pyplot(fig1)
 
 
-st.markdown("### Daily Trend Analysis")
+borough_counts = unique_crashes["borough"].value_counts()
 
-st.write(
-    """
-    This chart shows how crash counts change over time.
-    It helps identify fluctuations and short-term patterns in collision activity.
-    """
-)
+fig2, ax2 = plt.subplots()
+borough_counts.plot(kind="bar", ax=ax2)
 
-daily_chart = (
-    alt.Chart(daily_counts)
-    .mark_line()
-    .encode(
-        x="date:T",
-        y="crashes:Q",
-        tooltip=["date", "crashes"],
-    )
-)
+ax2.set_title("Crashes by Borough (2022)")
+ax2.set_xlabel("Borough")
+ax2.set_ylabel("Number of Crashes")
 
-st.subheader("Crashes by Day (BigQuery)")
-st.altair_chart(daily_chart, width="stretch")
+plt.xticks(rotation=45)
 
-st.markdown("### Key Insight")
-
-st.write(
-    """
-Crash counts fluctuate across time rather than remaining constant.
-Most days fall within a moderate range, suggesting a relatively stable baseline level of collisions.
-
-Occasional spikes indicate days with unusually high activity, which may be influenced by traffic patterns,
-weather conditions, or other external factors.
-"""
-)
-
-# =====================================================
-# Borough Analysis
-# =====================================================
-st.markdown("### Borough Analysis")
-
-st.write(
-    """
-This chart compares crash counts across boroughs,
-highlighting geographic differences in collision patterns.
-"""
-)
-
-borough_chart = (
-    alt.Chart(borough_counts)
-    .mark_bar()
-    .encode(
-        x="borough:N",
-        y="crashes:Q",
-        tooltip=["borough", "crashes"],
-    )
-)
-
-st.subheader("Crashes by Borough (BigQuery)")
-st.altair_chart(borough_chart, width="stretch")
-
-st.markdown("### Key Insight")
-
-st.write(
-    """
-The borough-level comparison reveals that motor vehicle collisions are unevenly distributed across New York City. Some boroughs experience significantly higher crash counts, indicating spatial concentration of traffic risk.
-These differences are likely driven by variations in population density, traffic volume, and urban infrastructure. Boroughs with higher levels of economic activity and mobility tend to exhibit greater exposure to collision risk.
-This spatial inequality suggests that traffic safety challenges are not uniform across the city. Instead, they are context-dependent and require localized policy responses. For example, high-risk boroughs may benefit from targeted interventions such as traffic calming measures, improved pedestrian infrastructure, and stricter enforcement.
-From a policy perspective, the findings highlight the importance of geographically differentiated strategies rather than one-size-fits-all solutions when addressing urban traffic safety.
-"""
-)
-
-# =====================================================
-# Load time
-# =====================================================
-elapsed = time.time() - start_time
-st.caption(f"Page loaded in {elapsed:.2f} seconds")
+st.pyplot(fig2)
